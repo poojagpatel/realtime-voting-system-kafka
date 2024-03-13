@@ -1,6 +1,9 @@
 import psycopg2
 import requests
 import random
+from confluent_kafka import SerializingProducer
+import json
+
 
 BASE_URL = 'https://randomuser.me/api/?nat=gb'
 PARTIES = ["Management Party", "Savior Party", "Tech Republic Party"]
@@ -54,7 +57,6 @@ def create_tables(conn, cur):
 
 
 
-
 def generate_candidate_data(candidate_number, total_parties):
     response = requests.get(BASE_URL + '&gender='+('female' if candidate_number%2==1 else 'male'))
     if response.status_code == 200:
@@ -99,9 +101,30 @@ def generate_voter_data():
     else:
         return "Error fetching data"
 
+def insert_voters(conn, cur, voter):
+    cur.execute("""
+            INSERT INTO voters (voter_id, voter_name, date_of_birth, gender, nationality, registration_number, address_street, address_city, address_state, address_country, address_postcode, email, phone_number, cell_number, picture, registered_age)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                (voter["voter_id"], voter['voter_name'], voter['date_of_birth'], voter['gender'],
+                 voter['nationality'], voter['registration_number'], voter['address']['street'],
+                 voter['address']['city'], voter['address']['state'], voter['address']['country'],
+                 voter['address']['postcode'], voter['email'], voter['phone_number'],
+                 voter['cell_number'], voter['picture'], voter['registered_age'])
+                )
+    conn.commit()
+                
+                
+def delivery_report(err, msg):
+    if err is not None:
+        print(f'Message delivery failed: {err}')
+    else:
+        print(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
 
 if __name__ == '__main__':
+    producer = SerializingProducer({
+        'bootstrap.servers': 'localhost:9092'
+    })
     try:
         conn = psycopg2.connect("host=localhost dbname=voting user=postgres password=postgres")
         cur = conn.cursor()
@@ -114,7 +137,6 @@ if __name__ == '__main__':
         """)
 
         candidates = cur.fetchall()
-        print(candidates)
 
         if len(candidates) == 0:
             for i in range(3):
@@ -130,10 +152,20 @@ if __name__ == '__main__':
 
                 conn.commit()
         
-        for i in range(1000):
+        for i in range(5):
             voter_data = generate_voter_data()
-            print(voter_data)
-            break
+            insert_voters(conn, cur, voter_data)
+            
+            producer.produce(
+                'voters_topic', 
+                key=voter_data['voter_id'],
+                value = json.dumps(voter_data),
+                on_delivery=delivery_report
+            )
+            
+            print('Produced voter {}, data:{}'.format(i, voter_data))
+            producer.flush()
+            
 
     except Exception as e:
         print(e)

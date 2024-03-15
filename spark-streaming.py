@@ -4,12 +4,15 @@ from pyspark.sql.functions import from_json, col
 from pyspark.sql.functions import sum as _sum
 
 if __name__ == '__main__':
-    spark = SparkSession.builder\
-                .appName('RealtimeVotingEnginneering')\
-                .config('spark.jars.packages', 'org.apache.spark:spark-sql-kafka-0-10_2.13:3.5.0')\
-                .config('spark.jars', 'postgresql-42.7.2.jar')\
-                .config("spark.sql.adaptive.enabled", "false")\
-                .getOrCreate()
+    spark = (SparkSession.builder
+             .appName("ElectionAnalysis")
+             .master("local[*]")  # Use local Spark execution with all available cores
+             .config("spark.jars.packages",
+                     "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0")  # Spark-Kafka integration
+             .config("spark.jars",
+                     "postgresql-42.7.2.jar")  # PostgreSQL driver
+             .config("spark.sql.adaptive.enabled", "false")  # Disable adaptive query execution
+             .getOrCreate())
 
     vote_schema = StructType([
         StructField("voter_id", StringType(), True),
@@ -40,16 +43,17 @@ if __name__ == '__main__':
         StructField("vote", IntegerType(), True)
     ])
 
-    votes_df = spark.readStream\
-                .format('kafka')\
-                .option('kafka.bootstrap.servers', 'localhost:9092')\
-                .option('subscribe', 'votes_topic')\
-                .option('startingOffsets', 'earliest')\
-                .load()\
-                .selectExpr('CAST(value as STRING)')\
-                .select(from_json(col('value'), vote_schema).alias('data'))\
-                .select('data.*')
+    votes_df = spark.readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", "localhost:9092") \
+        .option("subscribe", "votes_topic") \
+        .option("startingOffsets", "earliest") \
+        .load()\
+        .selectExpr('CAST(value as STRING)')\
+        .select(from_json(col('value'), vote_schema).alias('data'))\
+        .select('data.*')
     
+    #print(votes_df)
     # Data preprocessing and watermarking
     votes_df = votes_df.withColumn('voting_time', col('voting_time').cast(TimestampType()))\
                         .withColumn('vote', col('vote').cast(IntegerType()))

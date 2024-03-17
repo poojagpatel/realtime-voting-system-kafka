@@ -64,8 +64,7 @@ if __name__ == '__main__':
     # Aggregate votes per candidate and turnout by location
     votes_per_candidate = enriched_votes_df\
         .groupBy('candidate_id', 'candidate_name', 'party_affiliation', 'photo_url')\
-        .agg(_sum('vote'))\
-        .alias('total_votes')
+        .agg(_sum('vote').alias('total_votes'))
     
     turnout_by_location = enriched_votes_df.groupBy('address.state').count().alias('total_votes')
 
@@ -86,6 +85,7 @@ if __name__ == '__main__':
                                     .option('checkpointLocation', 'checkpoints/checkpoint2')\
                                     .outputMode('update')\
                                     .start()
+    
     
     # Await termination for the streaming queries
     votes_per_candidate_to_kafka.awaitTermination()

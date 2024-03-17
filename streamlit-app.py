@@ -26,7 +26,7 @@ def create_kafka_consumer(topic_name):
     consumer = KafkaConsumer(
         topic_name,
         bootstrap_servers='localhost:9092',
-        auto_offset_rest='earliest',
+        auto_offset_reset='earliest',
         value_deserializer=lambda x: json.loads(x.decode('utf-8'))
     )
     return consumer
@@ -34,11 +34,11 @@ def create_kafka_consumer(topic_name):
 
 def fetch_data_from_kafka(consumer):
     messages = consumer.poll(timeout_ms=1000)
-    print(messages)
     data = []
-    for message in messages.value():
+    for message in messages.values():
         for sub_message in message:
             data.append(sub_message.value)
+            print(sub_message.value)
     return data
 
 
@@ -55,6 +55,7 @@ def update_data():
     col1.metric('Total Voters', voters_count)
     col2.metric('Total Candidates', candidates_count)
 
+    topic_name = 'aggregated_votes_per_candidate'
     consumer = create_kafka_consumer(topic_name)
     data = fetch_data_from_kafka(consumer)
 
@@ -62,11 +63,22 @@ def update_data():
 
     # Identify leading candidate
     results = results.loc[results.groupby('candidate_id')['total_votes'].idxmax()]
+    leading_candidate = results.loc[results['total_votes'].idxmax()]
     
+    # Display the leading candidate information
+    st.markdown('---')
+    st.header('Leading Candidate')
+    col1, col2 = st.columns(2)
+    with col1:
+        st.image(leading_candidate['photo_url'], width=200)
+    with col2:
+        st.header(leading_candidate['candidate_name'])
+        st.subheader(leading_candidate['party_affiliation'])
+        st.subheader('Total Votes: {}'.format(leading_candidate['total_votes']))
 
 
 st.title('Realtime Election Voting Dashboard')
-topic_name = 'aggregated_votes_per_candidate'
+
 
 if __name__ == '__main__':
     update_data()

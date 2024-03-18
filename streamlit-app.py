@@ -1,5 +1,6 @@
 import psycopg2
 import streamlit as st
+from streamlit_autorefresh import st_autorefresh
 import time
 from kafka import KafkaConsumer
 import simplejson as json
@@ -75,6 +76,16 @@ def plot_donut_chart(data):
     
     return fig
 
+def sidebar():
+    if st.session_state.get('latest_update') is None:
+        st.session_state['latest_update'] = time.time()
+    
+    refresh_interval = st.sidebar.slider('Refresh interval (seconds)', 5, 60, 10)
+    st_autorefresh(interval=refresh_interval*1000, key='auto')
+
+    if st.sidebar.button('Refresh Data'):
+        update_data()
+
 
 
 def update_data():
@@ -133,4 +144,5 @@ st.title('Realtime Election Voting Dashboard')
 
 
 if __name__ == '__main__':
+    sidebar()
     update_data()

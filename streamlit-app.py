@@ -4,6 +4,8 @@ import time
 from kafka import KafkaConsumer
 import simplejson as json
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 @st.cache_data
@@ -42,6 +44,39 @@ def fetch_data_from_kafka(consumer):
     return data
 
 
+
+def plot_colored_bar_chart(results):
+    data_type = results['candidate_name']
+    colors = plt.cm.viridis(np.linspace(0, 1, len(data_type)))
+
+    bars = plt.bar(data_type, results['total_votes'], color=colors)
+    
+    plt.bar(data_type, results['total_votes'], color=colors)
+    plt.xlabel('Candidate')
+    plt.ylabel('Total Votes')
+    plt.title('Vote Count by Candidates')
+    plt.xticks(rotation=90)
+
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval, round(yval, 2), va='bottom')
+
+    return plt
+
+
+def plot_donut_chart(data):
+    labels = list(data['candidate_name'])
+    sizes = list(data['total_votes'])
+
+    fig, ax = plt.subplots()
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle = 140)
+    ax.axis('equal')
+    plt.title('Candidates Votes')
+    
+    return fig
+
+
+
 def update_data():
     last_refresh = st.empty()
     last_refresh.text(f"Last refresh at: {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -75,6 +110,23 @@ def update_data():
         st.header(leading_candidate['candidate_name'])
         st.subheader(leading_candidate['party_affiliation'])
         st.subheader('Total Votes: {}'.format(leading_candidate['total_votes']))
+
+
+    # Display the statistics and visualisations
+    st.markdown('---')
+    st.header('Voting Statistics')
+    result = results[['candidate_id', 'candidate_name', 'party_affiliation', 'total_votes']]
+    results = results.reset_index(drop=True)
+
+    # Display the bar chart and donut chart
+    col1, col2 = st.columns(2)
+    with col1:
+        bar_fig = plot_colored_bar_chart(results)
+        st.pyplot(bar_fig)
+
+    with col2:
+        donut_fig = plot_donut_chart(results)
+        st.pyplot(donut_fig)
 
 
 st.title('Realtime Election Voting Dashboard')

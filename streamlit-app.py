@@ -76,15 +76,49 @@ def plot_donut_chart(data):
     
     return fig
 
-def sidebar():
-    if st.session_state.get('latest_update') is None:
-        st.session_state['latest_update'] = time.time()
-    
-    refresh_interval = st.sidebar.slider('Refresh interval (seconds)', 5, 60, 10)
-    st_autorefresh(interval=refresh_interval*1000, key='auto')
 
-    if st.sidebar.button('Refresh Data'):
-        update_data()
+
+# Function to split a dataframe into chunks for pagination
+@st.cache_data(show_spinner=False)
+def split_frame(input_df, rows):
+    df = [input_df.loc[i: i + rows - 1, :] for i in range(0, len(input_df), rows)]
+    return df
+
+# Function to paginate a table
+def paginate_table(table_data):
+    top_menu = st.columns(3)
+    with top_menu[0]:
+        sort = st.radio("Sort Data", options=["Yes", "No"], horizontal=1, index=1)
+    if sort == "Yes":
+        with top_menu[1]:
+            sort_field = st.selectbox("Sort By", options=table_data.columns)
+        with top_menu[2]:
+            sort_direction = st.radio(
+                "Direction", options=["⬆️", "⬇️"], horizontal=True
+            )
+        table_data = table_data.sort_values(
+            by=sort_field, ascending=sort_direction == "⬆️", ignore_index=True
+        )
+    pagination = st.container()
+
+    bottom_menu = st.columns((4, 1, 1))
+    with bottom_menu[2]:
+        batch_size = st.selectbox("Page Size", options=[10, 25, 50, 100])
+    with bottom_menu[1]:
+        total_pages = (
+            int(len(table_data) / batch_size) if int(len(table_data) / batch_size) > 0 else 1
+        )
+        current_page = st.number_input(
+            "Page", min_value=1, max_value=total_pages, step=1
+        )
+    with bottom_menu[0]:
+        st.markdown(f"Page **{current_page}** of **{total_pages}** ")
+
+    pages = split_frame(table_data, batch_size)
+    pagination.dataframe(data=pages[current_page - 1], use_container_width=True)
+
+
+
 
 
 
@@ -126,7 +160,7 @@ def update_data():
     # Display the statistics and visualisations
     st.markdown('---')
     st.header('Voting Statistics')
-    result = results[['candidate_id', 'candidate_name', 'party_affiliation', 'total_votes']]
+    results = results[['candidate_id', 'candidate_name', 'party_affiliation', 'total_votes']]
     results = results.reset_index(drop=True)
 
     # Display the bar chart and donut chart
@@ -140,7 +174,39 @@ def update_data():
         st.pyplot(donut_fig)
 
 
+    st.table(results)
+
+    # fetch data from kafka on aggregated turnout by location
+    location_consumer = create_kafka_consumer('aggregated_turnout_by_location')
+    location_data = fetch_data_from_kafka(location_consumer)
+    location_result = pd.DataFrame(location_data)
+
+    # max location aggregate identification
+    location_result_idt = location_result.loc[location_result.groupby('state')['count'].idxmax()]
+    location_result_idt = location_result_idt.reset_index(drop=True)
+
+    # display voting results turnout by location
+    st.header('Location of Voters')
+    paginate_table(location_result_idt)
+
+    st.session_state['last_update'] = time.time()
+
+
 st.title('Realtime Election Voting Dashboard')
+
+
+
+
+
+def sidebar():
+    if st.session_state.get('last_update') is None:
+        st.session_state['last_update'] = time.time()
+    
+    refresh_interval = st.sidebar.slider('Refresh interval (seconds)', 5, 60, 10)
+    st_autorefresh(interval=refresh_interval*1000, key='auto')
+
+    if st.sidebar.button('Refresh Data'):
+        update_data()
 
 
 if __name__ == '__main__':

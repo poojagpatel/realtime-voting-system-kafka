@@ -141,7 +141,6 @@ if __name__ == '__main__':
         if len(candidates) == 0:
             for i in range(3):
                 candidate = generate_candidate_data(i, 3)
-                print(candidate)
                 cur.execute("""
                 INSERT INTO candidates (candidate_id, candidate_name, party_affiliation, biography, campaign_platform, photo_url)
                         VALUES (%s, %s, %s, %s, %s, %s)
@@ -152,7 +151,7 @@ if __name__ == '__main__':
 
                 conn.commit()
         
-        for i in range(5):
+        for i in range(200):
             voter_data = generate_voter_data()
             insert_voters(conn, cur, voter_data)
             

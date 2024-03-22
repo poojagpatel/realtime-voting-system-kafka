@@ -70,3 +70,24 @@ Streamlit dashboard screenshots
 ![alt text](images/dashboard2.png)
 
 ![alt text](images/dashboard3.png)
+
+
+## Errors and Troubleshooting
+
+Please set the appropriate spark config for the Spark-Kafka integration during its initialization.
+For example, I was using the Spark version 3.5 and Scala version 2.12 and hence the config is set to use these specifications.
+
+```
+if __name__ == '__main__':
+    spark = (SparkSession.builder
+             .appName("ElectionAnalysis")
+             .master("local[*]")  # Use local Spark execution with all available cores
+             .config("spark.jars.packages",
+                     "org.apache.spark:spark-sql-kafka-0-10_[2.12:3.5.0]")  # Spark-Kafka integration
+             .config("spark.jars",
+                     "postgresql-42.7.2.jar")  # PostgreSQL driver
+             .config("spark.sql.adaptive.enabled", "false")  # Disable adaptive query execution
+             .getOrCreate())
+```
+
+![alt text](images/spark-scala-version.png)
